@@ -1,23 +1,37 @@
 import logging
 from bidi.algorithm import get_display
 import unicodedata
+import os
 
 # ANSI escape codes for bold and colored formatting
 BOLD_YELLOW = '\033[1;33m'
 BOLD_GREEN = '\033[1;32m'
 BOLD_RED = '\033[1;31m'
+
+
+def safe_print(msg):
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        print(msg.encode('ascii', errors='ignore').decode('ascii'))
+
 RESET = '\033[0m'
 
 # Configure logging
-def setup_logging(log_file='application.log'):
+def setup_logging():
+    # Always write logs to current script folder
+    log_dir = os.path.dirname(os.path.abspath(__file__))
+    log_file = os.path.join(log_dir, 'application.log')
+
     logging.basicConfig(
         filename=log_file,
-        filemode='w',
+        filemode='a',
         level=logging.INFO,
-        format='%(message)s',  # Only log the message itself
+        format='%(asctime)s - %(message)s',
         encoding='utf-8'
     )
     return logging.getLogger()
+
 
 logger = setup_logging()
 def log_and_print(message, level="info", ansi_format=None, is_hebrew=False, indent=0):
@@ -41,7 +55,7 @@ def log_and_print(message, level="info", ansi_format=None, is_hebrew=False, inde
     console_message = f"{' ' * indent}{console_message}"
 
     # Print to the console
-    print(console_message)
+    safe_print(console_message)
 
     # Log to the file without ANSI formatting or indentation
     if level.lower() == "info":
