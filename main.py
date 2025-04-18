@@ -87,7 +87,7 @@ def check_vacation_proposals():
             if not found:
                 logging.info(f"❌ No proposals containing '{KEYWORD}' found.")
                 log_and_print(f"❌ No proposals containing '{KEYWORD}' found.",is_hebrew=True)
-                send_sms_alert(f"\n😬😬😬😬 \n אין מידע לגבי חופשות {KEYWORD} ✈️")
+                send_sms_alert(f"\n אין מידע לגבי חופשות {KEYWORD} ✈️")
 
 
             browser.close()
