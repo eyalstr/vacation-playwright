@@ -10,9 +10,9 @@ from utils import safe_print  # make sure this is in utils.py
 # === Load environment variables ===
 load_dotenv()
 
-USERNAME = os.getenv("USERNAME")
-PASSWORD = os.getenv("PASSWORD")
 LOGIN_URL = os.getenv("LOGIN_URL", "https://n.tmura.co.il/amuta/?source=amuta")
+                        
+
 KEYWORD = "קיץ"
 
 # Twilio
@@ -55,9 +55,15 @@ def check_vacation_proposals():
             page = context.new_page()
 
             log_and_print("🔐 Navigating to login page...")
-            page.goto(LOGIN_URL, timeout=60000)
-            if not USERNAME or not PASSWORD:
-                log_and_print("❌ Missing USERNAME or PASSWORD in .env file")
+            try:
+                page.goto(LOGIN_URL, timeout=120000)
+            except Exception as e:
+                log_and_print(f"❌ Page navigation failed: {e}")
+                browser.close()
+                return
+                
+                if not USERNAME or not PASSWORD:
+                    log_and_print("❌ Missing USERNAME or PASSWORD in .env file")
                 sys.exit(1)
 
             page.fill("#userName", USERNAME)
