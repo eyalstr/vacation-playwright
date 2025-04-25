@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import logging
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
@@ -8,30 +9,38 @@ from utils import log_and_print
 from utils import safe_print  # make sure this is in utils.py
 
 # === Load environment variables ===
-load_dotenv()
+load_dotenv(override=True)
 
-LOGIN_URL = os.getenv("LOGIN_URL", "https://n.tmura.co.il/amuta/?source=amuta")
-                        
-
-KEYWORD = "קיץ"
+LOGIN_URL = os.getenv("LOGIN_URL", "https://n.tmura.co.il/amuta/Category")
 
 # Twilio
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_FROM = os.getenv("TWILIO_FROM")
-TWILIO_TO = os.getenv("TWILIO_TO")
-USERNAME = os.getenv("USERNAME")
-PASSWORD = os.getenv("PASSWORD")
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "").strip()
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "").strip()
+TWILIO_FROM = os.getenv("TWILIO_FROM", "").strip()
+TWILIO_TO = os.getenv("TWILIO_TO", "").strip()
+USERNAME = os.getenv("USERNAME", "").strip()
+PASSWORD = os.getenv("PASSWORD", "").strip()
 
 # === Setup logging ===
 log_file_path = os.path.join(os.path.dirname(__file__), "check_log.txt")
-
 logging.basicConfig(
     filename=log_file_path,
     level=logging.INFO,
     format="%(asctime)s - %(message)s",
     encoding="utf-8"
 )
+
+PROPOSALS_FILE = "proposals.json"
+
+def load_previous_proposals():
+    if os.path.exists(PROPOSALS_FILE):
+        with open(PROPOSALS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+def save_proposals_to_file(proposals):
+    with open(PROPOSALS_FILE, "w", encoding="utf-8") as f:
+        json.dump(proposals, f, ensure_ascii=False, indent=2)
 
 def send_sms_alert(message):
     try:
@@ -61,40 +70,41 @@ def check_vacation_proposals():
                 log_and_print(f"❌ Page navigation failed: {e}")
                 browser.close()
                 return
-                
-                if not USERNAME or not PASSWORD:
-                    log_and_print("❌ Missing USERNAME or PASSWORD in .env file")
-                sys.exit(1)
 
+            if not USERNAME or not PASSWORD:
+                log_and_print("❌ Missing USERNAME or PASSWORD in .env file")
+                sys.exit(1)
+          
             page.fill("#userName", USERNAME)
             page.fill("#password", PASSWORD)
             page.click("button.btn-loginPass")
             page.wait_for_timeout(5000)
+            page.screenshot(path="after_login.png", full_page=True)
 
             proposal_divs = page.query_selector_all('div[data-font-size="20"]')
-            log_and_print(f"🔍 Found {len(proposal_divs)} proposals to scan.",is_hebrew=True)
+            log_and_print(f"🔍 Found {len(proposal_divs)} proposals to scan.", is_hebrew=True)
             logging.info(f"🔍 Found {len(proposal_divs)} proposals to scan.")
 
-            found = False
+            current_proposals = []
             for div in proposal_divs:
                 try:
                     text = div.inner_text().strip()
-                    logging.info(f"📝 Scanning: {text}")
-                    log_and_print(f"📝 Scanning: {text}")
-                    if KEYWORD in text:
-                        logging.info(f"✅ Proposal matched: {text}")
-                        log_and_print("🎉 Proposal found! Sending SMS...")
-                        send_sms_alert(f"🏖️🏖️🏖️🏖️ יש מידע לגבי חופשות {KEYWORD}! ✈️\n{text}")
-                        found = True
+                    current_proposals.append(text)
+                    log_and_print(f"📝 הצעה נמצאה: {text}", is_hebrew=True)
                 except Exception as scan_err:
                     logging.warning(f"⚠️ Could not read proposal text: {scan_err}")
 
+            previous_proposals = load_previous_proposals()
+            new_proposals = [p for p in current_proposals if p not in previous_proposals]
 
-            if not found:
-                logging.info(f"❌ No proposals containing '{KEYWORD}' found.")
-                log_and_print(f"❌ No proposals containing '{KEYWORD}' found.",is_hebrew=True)
-                send_sms_alert(f"\n אין מידע לגבי חופשות {KEYWORD} ✈️")
-
+            if new_proposals:
+                log_and_print(f"{len(new_proposals)} נמצאו הצעות חדשות!", is_hebrew=True)
+                for proposal in new_proposals:
+                    log_and_print(f"✨ חדשה: {proposal}", is_hebrew=True)
+                send_sms_alert(f"📣 הצעות חדשות להצגה באתר {len(new_proposals)} ")
+                save_proposals_to_file(current_proposals)
+            else:
+                log_and_print("❌ אין הצעות חדשות מהפעם הקודמת.", is_hebrew=True)
 
             browser.close()
 
